@@ -21,10 +21,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configura Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Controlla SDK preinstallato
+        id: sdk
+        run: |
+          if [ -f "$ANDROID_HOME/platforms/android-35/android.jar" ] && [ -x "$ANDROID_HOME/build-tools/34.0.0/apksigner" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "SDK Android disponibile"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configura SDK se necessario
+        if: steps.sdk.outputs.ready != 'true'
+        uses: android-actions/setup-android@v4
         with:
-          cmdline-tools-version: '12266719'
+          packages: 'platforms;android-35 build-tools;34.0.0'
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -41,14 +52,11 @@ jobs:
           node --check app/src/main/assets/local.js
           node --check app/src/main/assets/app.js
 
-      - name: Installa SDK Android
-        run: sdkmanager 'platforms;android-35' 'build-tools;34.0.0'
-
-      - name: Compila APK firmato debug
+      - name: Compila APK
         working-directory: android-project
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Verifica firma
+      - name: Verifica firma APK
         run: |
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs android-project/app/build/outputs/apk/debug/app-debug.apk
           cp android-project/app/build/outputs/apk/debug/app-debug.apk Market-Briefing.apk
